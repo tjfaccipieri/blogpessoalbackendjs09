@@ -1,82 +1,71 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common'; // Importa exceções, status HTTP e decorator Injectable
-import { InjectRepository } from '@nestjs/typeorm'; // Injeta o repositório do TypeORM
-import { ILike, Repository } from 'typeorm'; // ILike para busca case-insensitive, Repository para operações no banco
-import { DeleteResult } from 'typeorm/browser'; // Tipo para resultado de deleção
-import { Postagem } from '../entities/postagem.entity'; // Importa a entidade Postagem
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { ILike, Repository } from 'typeorm';
+import { DeleteResult } from 'typeorm/browser';
+import { TemaService } from '../../tema/services/tema.service';
+import { Postagem } from '../entities/postagem.entity';
 
-@Injectable() // Torna a classe injetável pelo NestJS
+@Injectable()
 export class PostagemService {
   constructor(
-    @InjectRepository(Postagem) // Injeta o repositório da entidade Postagem
-    private postagemRepository: Repository<Postagem>, // Repositório para acessar o banco
+    @InjectRepository(Postagem)
+    private postagemRepository: Repository<Postagem>,
+    private temaService: TemaService,
   ) {}
 
   async findAll(): Promise<Postagem[]> {
-    // Busca todas as postagens
-    return await this.postagemRepository.find(); // Retorna todas do banco
+    return await this.postagemRepository.find({
+      relations: {
+        tema: true,
+      },
+    });
   }
 
   async findById(id: number): Promise<Postagem> {
-    // Busca uma postagem pelo id
-    /**
-     * Recupera uma única entidade Postagem do banco de dados usando o padrão de repositório do TypeORM.
-     *
-     * O método `findOne` faz uma consulta no `postagemRepository` buscando uma entidade onde o campo `id`
-     * seja igual ao valor fornecido. Isso é utilizado para buscar uma postagem específica pelo seu identificador único.
-     *
-     * id - Identificador único da entidade Postagem que será recuperada.
-     */
     const postagem = await this.postagemRepository.findOne({
       where: {
         id,
       },
+      relations: {
+        tema: true,
+      },
     });
 
     if (!postagem) {
-      // Se não encontrar, lança exceção 404
-      /**
-       * Lança uma exceção HTTP 404 caso a postagem não seja encontrada.
-       *
-       * Se o método não localizar uma entidade Postagem com o ID fornecido,
-       * ele dispara uma exceção do tipo `HttpException` com a mensagem
-       * 'A postagem não foi encontrada!!!!' e o status HTTP `NOT_FOUND`.
-       *
-       * @throws {HttpException} Exceção 404 se a postagem não existir no banco de dados.
-       */
       throw new HttpException(
         'A postagem não foi encontrada!!!!',
         HttpStatus.NOT_FOUND,
       );
     }
 
-    return postagem; // Retorna a postagem encontrada
+    return postagem;
   }
 
   async findAllByTitulo(titulo: string): Promise<Postagem[]> {
-    // Busca postagens pelo título (parcial, ignorando maiúsculas/minúsculas)
     return await this.postagemRepository.find({
       where: {
-        titulo: ILike(`%${titulo}%`), // Busca por título parecido
+        titulo: ILike(`%${titulo}%`),
+      },
+      relations: {
+        tema: true,
       },
     });
   }
 
   async create(postagem: Postagem): Promise<Postagem> {
-    // Cria uma nova postagem
-    return await this.postagemRepository.save(postagem); // Salva no banco
+    await this.temaService.findById(postagem.tema.id);
+    return await this.postagemRepository.save(postagem);
   }
 
   async update(postagem: Postagem): Promise<Postagem> {
-    // Atualiza uma postagem existente
-    await this.findById(postagem.id); // Garante que existe antes de atualizar
-
-    return await this.postagemRepository.save(postagem); // Salva as alterações
+    await this.findById(postagem.id);
+    await this.temaService.findById(postagem.tema.id);
+    return await this.postagemRepository.save(postagem);
   }
 
   async delete(id: number): Promise<DeleteResult> {
-    // Deleta uma postagem pelo id
-    await this.findById(id); // Garante que existe antes de deletar
+    await this.findById(id);
 
-    return await this.postagemRepository.delete(id); // Remove do banco
+    return await this.postagemRepository.delete(id);
   }
 }
